@@ -1,4 +1,4 @@
-from locust import User, between, task, SequentialTaskSet, TaskSet
+from locust import User, between, task, SequentialTaskSet, TaskSet, HttpUser, events
 
 
 @events.test_start.add_listener
@@ -27,7 +27,18 @@ class SearchProduct(SequentialTaskSet):
 class ViewCart(SequentialTaskSet):
     @task
     def get_cart_items(self):
-        print("Get all cart items")
+        with self.client.get("/>", catch_response=True) as response:
+            if response.status_code != 200:
+                response.failure("Failed to get all cart items, StatusCode: " + str(response.status_code))
+            else:
+                if "Why Us?" in response.text:
+                    response.success()
+                else:
+                    response.failure("Could not verirfy that this is the correct page" + response.text)
+                
+    @task
+    def exit_navigation(self):
+        self.interrupt()
     
     @task    
     def search_cart_item(self):
@@ -38,9 +49,14 @@ class ViewCart(SequentialTaskSet):
         self.interrupt()
         
         
-class MyUser(User):
+class MyUser(HttpUser):
     wait_time = between(1, 2)
-    tasks = {
-        SearchProduct: 4, 
-        ViewCart: 1
-    }    
+    tasks = [ViewCart]        
+   
+    
+    # def on_start(self):
+    #     print("MyUser : Hatching New User ..")
+        
+    # def on_stop(self):
+    #     print("MyUser : Destroying User ..")
+        
